@@ -99,9 +99,14 @@
     <!-- Accounts -->
     <section id="view-accounts" class="view hidden">
       <h2>Social accounts</h2>
+      <div class="panel" style="margin-bottom:1rem">
+        <h3>Connect securely with OAuth (recommended)</h3>
+        <p class="muted">The official, production-grade way to connect — no passwords stored. Buttons are enabled for platforms whose OAuth app is configured on the server.</p>
+        <div id="oauth-buttons" class="oauth-buttons"></div>
+      </div>
       <div class="grid-2">
         <div class="panel">
-          <h3>Connect an account</h3>
+          <h3>Or connect with username + password / token</h3>
           <form id="account-form">
             <label>Platform
               <select name="platform" required>

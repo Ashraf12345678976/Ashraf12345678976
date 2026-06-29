@@ -67,6 +67,40 @@ const config = {
   ai: {
     provider: process.env.AI_VIDEO_PROVIDER || 'stub',
     apiKey: process.env.AI_VIDEO_API_KEY || null,
+    replicate: {
+      token: process.env.REPLICATE_API_TOKEN || null,
+      // Default to a hosted text-to-video model; override per your account.
+      model: process.env.REPLICATE_VIDEO_MODEL || 'minimax/video-01',
+    },
+    runway: {
+      apiKey: process.env.RUNWAY_API_KEY || null,
+      model: process.env.RUNWAY_MODEL || 'gen3a_turbo',
+    },
+  },
+
+  // Base URL the OAuth providers redirect back to (must be publicly reachable
+  // in production and registered in each provider's app settings).
+  oauth: {
+    redirectBase:
+      process.env.OAUTH_REDIRECT_BASE ||
+      `http://localhost:${Number(process.env.PORT || 3000)}`,
+    google: {
+      clientId: process.env.GOOGLE_CLIENT_ID || null,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET || null,
+    },
+    x: {
+      clientId: process.env.X_CLIENT_ID || null,
+      clientSecret: process.env.X_CLIENT_SECRET || null,
+    },
+    tiktok: {
+      clientKey: process.env.TIKTOK_CLIENT_KEY || null,
+      clientSecret: process.env.TIKTOK_CLIENT_SECRET || null,
+    },
+    facebook: {
+      clientId: process.env.FACEBOOK_CLIENT_ID || null,
+      clientSecret: process.env.FACEBOOK_CLIENT_SECRET || null,
+      graphVersion: process.env.FACEBOOK_GRAPH_VERSION || 'v21.0',
+    },
   },
 };
 

@@ -11,6 +11,8 @@ import accountRoutes from './routes/accounts.js';
 import videoRoutes from './routes/videos.js';
 import publishRoutes from './routes/publish.js';
 import analyticsRoutes from './routes/analytics.js';
+import oauthRoutes from './routes/oauth.js';
+import mediaRoutes from './routes/media.js';
 
 export function createApp() {
   const app = express();
@@ -27,9 +29,10 @@ export function createApp() {
           defaultSrc: ["'self'"],
           scriptSrc: ["'self'", "'unsafe-inline'"],
           styleSrc: ["'self'", "'unsafe-inline'"],
-          imgSrc: ["'self'", 'data:'],
-          // SVG "videos" are loaded via <img>/<object> from same origin.
-          objectSrc: ["'self'"],
+          imgSrc: ["'self'", 'data:', 'blob:'],
+          mediaSrc: ["'self'", 'blob:'],
+          // Generated assets are loaded as same-origin blob URLs.
+          objectSrc: ["'self'", 'blob:'],
           connectSrc: ["'self'"],
         },
       },
@@ -50,12 +53,17 @@ export function createApp() {
     res.json({ status: 'ok', time: new Date().toISOString() })
   );
 
+  // Public, token-authorised media (mounted before the API rate limiter so
+  // external fetchers like Instagram aren't throttled with API clients).
+  app.use('/public/media', mediaRoutes);
+
   app.use('/api', apiLimiter);
   app.use('/api/auth', authRoutes);
   app.use('/api/accounts', accountRoutes);
   app.use('/api/videos', videoRoutes);
   app.use('/api/videos', publishRoutes); // /:id/publish
   app.use('/api/analytics', analyticsRoutes);
+  app.use('/api/oauth', oauthRoutes);
 
   // Static dashboard (zero-build SPA).
   app.use(express.static(config.paths.public));

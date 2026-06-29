@@ -5,9 +5,12 @@ auto-publish them to social media — with a built-in analytics dashboard that
 tracks how many people watched.
 
 This is a complete, runnable full-stack application: a hardened Node.js/Express
-API, a SQLite database, and a zero-build dashboard. Everything works
-end-to-end offline; the AI-video and social-publishing layers are pluggable so
-you can drop in real providers without touching the rest of the system.
+API, a SQLite database, and a zero-build dashboard. It ships with **real
+integrations** — Replicate/Runway text-to-video and full OAuth 2.0 + publishing
+for YouTube, X, TikTok and Instagram — and **also works fully offline**: when a
+provider's credentials aren't set, it transparently falls back to a built-in
+renderer and simulated publishing so you can try the entire workflow without
+any API keys.
 
 ---
 
@@ -85,13 +88,15 @@ analytics.
 src/
   config/         env + path configuration (fails closed in production)
   db/             SQLite connection + schema.sql (migrations on boot)
-  security/       crypto (AES-256-GCM), password (bcrypt), tokens (JWT)
+  security/       crypto (AES-256-GCM), password (bcrypt), tokens (JWT),
+                  oauthState (PKCE + signed state)
   middleware/     auth, validation (Zod), rate limiting, error handling
   repositories/   data-access layer (parameterized queries only)
   services/
-    aiVideo/      provider registry + built-in stub renderer
-    social/       per-platform publish adapters (YouTube/TikTok/Instagram/X)
-  routes/         auth, accounts, videos, publish, analytics
+    http.js       shared fetch helper (timeouts, structured errors)
+    aiVideo/      registry + stub renderer + replicate + runway providers
+    social/       OAuth + publish adapters: youtube, x, tiktok, instagram
+  routes/         auth, accounts, videos, publish, analytics, oauth, media
   app.js          express wiring + security headers
   server.js       entrypoint + graceful shutdown
 public/           zero-build dashboard (HTML/CSS/vanilla JS)
@@ -125,31 +130,40 @@ draft → generating → ready_for_review → approved → publishing → publis
 - **Input** validated with Zod; **all SQL** is parameterized; media reads are
   guarded against path traversal.
 
-### ⚠️ Production note on social credentials
+### Two ways to connect a social account
 
-The app accepts and encrypts **username + password/token** exactly as
-requested. In production, the major platforms authenticate via **OAuth 2.0**,
-not raw passwords. To go fully live, swap each adapter in
-`src/services/social/index.js` for the platform's official OAuth flow — the
-resulting tokens flow through the *same* encrypted storage path
-(`accountRepo` + `crypto.js`), so nothing else changes.
+1. **OAuth 2.0 (recommended, production-grade)** — click *Connect …* in the
+   dashboard. The app runs the platform's real OAuth flow (PKCE for X), stores
+   the resulting **access/refresh tokens encrypted**, refreshes them
+   just-in-time before publishing, and uploads via the official APIs:
 
-### Plugging in a real AI video provider
+   | Platform | Auth | Publish API |
+   |---|---|---|
+   | YouTube | Google OAuth 2.0 | Data API v3 resumable upload |
+   | X (Twitter) | OAuth 2.0 + PKCE | chunked media upload + `POST /2/tweets` |
+   | TikTok | Login Kit | Content Posting API (`FILE_UPLOAD`) |
+   | Instagram | Facebook Login | Graph API Reels (container → publish) |
 
-Implement the provider interface and register it:
+   Configure each app's client id/secret in `.env` (see `.env.example`) and
+   register the redirect URI `…/api/oauth/<platform>/callback`. Platforms
+   without configured credentials are disabled in the UI.
 
-```js
-// src/services/aiVideo/myProvider.js
-export const myProvider = {
-  id: 'runway',
-  async generate({ videoId, title, prompt }) {
-    // call the real API, download the mp4 into data/media/<videoId>/
-    return { script, durationSec, scenes, assetPath, thumbPath };
-  },
-};
-// src/services/aiVideo/index.js → registerProvider(myProvider)
-// .env → AI_VIDEO_PROVIDER=runway
-```
+2. **Username + password/token** — stored encrypted at rest exactly as
+   requested. Used as-is for verification/publishing when a platform's OAuth app
+   isn't configured (simulated end-to-end so the workflow still runs offline).
+
+> Instagram fetches the video from a **public URL**, so the publish flow mints a
+> short-lived signed link (`/public/media/:token`) that exposes only that one
+> asset to the platform's fetcher.
+
+### Real AI video generation
+
+Set `AI_VIDEO_PROVIDER` to `replicate` or `runway` and provide the matching API
+key. The provider calls the real API, polls until the render finishes,
+downloads the resulting **MP4** into `data/media/<id>/`, and the dashboard plays
+it back in a `<video>` element for review. Add your own provider by
+implementing `generate({ videoId, title, prompt })` and calling
+`registerProvider()` in `src/services/aiVideo/index.js`.
 
 ---
 
@@ -162,9 +176,13 @@ export const myProvider = {
 | POST | `/api/auth/refresh` | cookie | Rotate session |
 | POST | `/api/auth/logout` | – | End session |
 | GET | `/api/accounts` | ✓ | List connected accounts |
-| POST | `/api/accounts` | ✓ | Connect + verify an account |
+| POST | `/api/accounts` | ✓ | Connect + verify (password/token) |
 | POST | `/api/accounts/:id/verify` | ✓ | Re-verify |
 | DELETE | `/api/accounts/:id` | ✓ | Remove |
+| GET | `/api/oauth/status` | ✓ | Which platforms have OAuth configured |
+| GET | `/api/oauth/:platform/start` | ✓ | Begin OAuth connect |
+| GET | `/api/oauth/:platform/callback` | – | OAuth redirect handler |
+| GET | `/public/media/:token` | signed | Public asset fetch (for Instagram) |
 | GET | `/api/videos` | ✓ | List videos |
 | POST | `/api/videos` | ✓ | Generate a video |
 | GET | `/api/videos/:id/stream` | ✓ | Watch the asset |

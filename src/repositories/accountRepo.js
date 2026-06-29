@@ -52,6 +52,52 @@ export const accountRepo = {
     return this.findById(userId, id);
   },
 
+  /** Refresh the encrypted credential blob WITHOUT resetting verification. */
+  updateTokens(userId, id, credentialCipher) {
+    getDb()
+      .prepare(
+        `UPDATE social_accounts
+         SET credential_cipher = ?, updated_at = datetime('now')
+         WHERE id = ? AND user_id = ?`
+      )
+      .run(credentialCipher, id, userId);
+    return this.findWithSecret(userId, id);
+  },
+
+  /** Find by (user, platform, username) — used to upsert OAuth connections. */
+  findByHandle(userId, platform, username) {
+    return getDb()
+      .prepare(
+        `SELECT * FROM social_accounts
+         WHERE user_id = ? AND platform = ? AND username = ?`
+      )
+      .get(userId, platform, username);
+  },
+
+  /** Create or update an OAuth-connected account, marking it verified. */
+  upsertOAuth({ userId, platform, username, credentialCipher }) {
+    const existing = this.findByHandle(userId, platform, username);
+    if (existing) {
+      getDb()
+        .prepare(
+          `UPDATE social_accounts
+           SET credential_cipher = ?, status = 'verified',
+               last_verified_at = datetime('now'), updated_at = datetime('now')
+           WHERE id = ?`
+        )
+        .run(credentialCipher, existing.id);
+      return this.findById(userId, existing.id);
+    }
+    const info = getDb()
+      .prepare(
+        `INSERT INTO social_accounts
+           (user_id, platform, username, credential_cipher, status, last_verified_at)
+         VALUES (?, ?, ?, ?, 'verified', datetime('now'))`
+      )
+      .run(userId, platform, username, credentialCipher);
+    return this.findById(userId, info.lastInsertRowid);
+  },
+
   updateCredential(userId, id, credentialCipher) {
     getDb()
       .prepare(

@@ -158,6 +158,45 @@ async function loadAccounts() {
   const { accounts } = await api('/accounts');
   state.accounts = accounts;
   renderAccounts();
+  loadOAuthStatus();
+}
+
+async function loadOAuthStatus() {
+  const box = $('#oauth-buttons');
+  if (!box) return;
+  let platforms = [];
+  try {
+    ({ platforms } = await api('/oauth/status'));
+  } catch {
+    return;
+  }
+  const labels = { youtube: 'YouTube', x: 'X (Twitter)', tiktok: 'TikTok', instagram: 'Instagram' };
+  box.innerHTML = '';
+  for (const p of platforms) {
+    const btn = el(
+      'button',
+      {
+        className: `btn oauth-btn ${p.oauthConfigured ? 'ready' : ''}`,
+        title: p.oauthConfigured
+          ? `Connect ${labels[p.platform]} via OAuth`
+          : `${labels[p.platform]} OAuth not configured on server`,
+        onclick: () => startOAuth(p.platform),
+      },
+      el('span', { className: 'dot' }),
+      `Connect ${labels[p.platform] || p.platform}`
+    );
+    if (!p.oauthConfigured) btn.disabled = true;
+    box.append(btn);
+  }
+}
+
+async function startOAuth(platform) {
+  try {
+    const { url } = await api(`/oauth/${platform}/start`);
+    window.location.href = url; // hand off to the provider's consent screen
+  } catch (err) {
+    toast(err.message, 'bad');
+  }
 }
 
 async function loadVideos() {
@@ -344,12 +383,16 @@ async function renderReview() {
     el('span', { className: `badge ${video.status}` }, video.status.replace(/_/g, ' '))
   );
 
-  // Player — load the protected SVG "video" as a blob into an <object>.
-  const player = el('object', { className: 'player', type: 'image/svg+xml' });
+  // Player — real MP4 videos use <video>; generated SVG previews use <object>.
+  const isMp4 = video.assetMime === 'video/mp4';
+  const player = isMp4
+    ? el('video', { className: 'player', controls: true })
+    : el('object', { className: 'player', type: 'image/svg+xml' });
   area.append(player);
   if (video.assetUrl) {
     const obj = await withAuthBlob(video.assetUrl);
-    player.data = obj;
+    if (isMp4) player.src = obj;
+    else player.data = obj;
   }
 
   area.append(el('p', { className: 'muted' }, `Duration ~${video.durationSec || 0}s · ${video.provider}`));
@@ -526,9 +569,27 @@ function renderAnalytics(data) {
   }
 }
 
+// ── OAuth callback feedback ──────────────────────────────────────────────
+function handleOAuthReturn() {
+  const params = new URLSearchParams(window.location.search);
+  const status = params.get('oauth');
+  if (!status) return;
+  if (status === 'connected') {
+    toast(`Connected ${params.get('platform') || 'account'} via OAuth`, 'good');
+  } else if (status === 'error') {
+    toast(`OAuth failed: ${params.get('message') || 'unknown error'}`, 'bad');
+  }
+  // Clean the query string so a refresh doesn't re-trigger the toast.
+  window.history.replaceState({}, '', window.location.pathname);
+}
+
 // ── Boot ─────────────────────────────────────────────────────────────────
 (async function boot() {
   const ok = await refresh();
-  if (ok) showApp();
-  else showAuth();
+  if (ok) {
+    showApp();
+    handleOAuthReturn();
+  } else {
+    showAuth();
+  }
 })();

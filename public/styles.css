@@ -116,6 +116,12 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 .publish-targets label { display: flex; flex-direction: row; align-items: center; gap: .5rem; font-size: .9rem; }
 .watched-note { font-size: .82rem; color: var(--warn); margin-top: .4rem; }
 
+/* oauth buttons */
+.oauth-buttons { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: .6rem; }
+.oauth-btn { display: flex; align-items: center; gap: .5rem; }
+.oauth-btn .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--bad); }
+.oauth-btn.ready .dot { background: var(--good); }
+
 /* account list */
 .acct { display: flex; align-items: center; gap: .6rem; padding: .6rem 0; border-bottom: 1px solid var(--line); }
 .acct .meta { flex: 1; }

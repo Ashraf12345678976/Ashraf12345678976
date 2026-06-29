@@ -14,7 +14,8 @@ export const notFound = (req, res) => {
 // Central error handler. Never leaks stack traces to clients.
 export const errorHandler = (err, req, res, _next) => {
   const status = err.status || 500;
-  if (status >= 500) {
+  // 501 = a feature that isn't configured (expected); don't treat as a crash.
+  if (status >= 500 && status !== 501) {
     // eslint-disable-next-line no-console
     console.error('[error]', err);
   }

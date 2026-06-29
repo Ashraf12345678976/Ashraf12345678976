@@ -28,6 +28,11 @@ function serialize(v) {
     durationSec: v.duration_sec,
     hasAsset: Boolean(v.asset_path),
     assetUrl: v.asset_path ? `/api/videos/${v.id}/stream` : null,
+    assetMime: v.asset_path
+      ? v.asset_path.endsWith('.mp4')
+        ? 'video/mp4'
+        : 'image/svg+xml'
+      : null,
     thumbUrl: v.thumb_path ? `/api/videos/${v.id}/thumb` : null,
     approvedAt: v.approved_at,
     error: v.error,
@@ -117,7 +122,7 @@ router.get(
   '/:id/stream',
   asyncHandler(async (req, res) => {
     const abs = resolveAsset(req, 'asset_path');
-    res.type('image/svg+xml');
+    res.type(abs.endsWith('.mp4') ? 'video/mp4' : 'image/svg+xml');
     res.setHeader('Cache-Control', 'no-store');
     fs.createReadStream(abs).pipe(res);
   })

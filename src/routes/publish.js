@@ -1,12 +1,16 @@
 import { Router } from 'express';
+import path from 'node:path';
+import fs from 'node:fs';
 import { z } from 'zod';
+import config from '../config/index.js';
 import { validate } from '../middleware/validate.js';
 import { asyncHandler, HttpError } from '../middleware/error.js';
 import { requireAuth } from '../middleware/auth.js';
 import { videoRepo, publicationRepo } from '../repositories/videoRepo.js';
 import { accountRepo } from '../repositories/accountRepo.js';
-import { decryptJson } from '../security/crypto.js';
-import { getAdapter } from '../services/social/index.js';
+import { encryptJson, decryptJson } from '../security/crypto.js';
+import { getAdapter, needsRefresh } from '../services/social/index.js';
+import { signMediaToken } from '../security/tokens.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -14,6 +18,16 @@ router.use(requireAuth);
 const publishSchema = z.object({
   accountIds: z.array(z.number().int().positive()).min(1).max(20),
 });
+
+// Refresh OAuth tokens just-in-time and persist them, returning fresh creds.
+async function ensureFreshCredentials(userId, account, adapter) {
+  let credentials = decryptJson(account.credential_cipher);
+  if (needsRefresh(credentials) && typeof adapter.refreshTokens === 'function') {
+    credentials = await adapter.refreshTokens(credentials);
+    accountRepo.updateTokens(userId, account.id, encryptJson(credentials));
+  }
+  return credentials;
+}
 
 // POST /api/videos/:id/publish  — fan out to one or more social accounts.
 router.post(
@@ -26,11 +40,18 @@ router.post(
 
     // ENFORCE the review gate: a video must be watched & approved first.
     if (video.status !== 'approved' && video.status !== 'published') {
-      throw new HttpError(
-        409,
-        'Video must be reviewed and approved before publishing'
-      );
+      throw new HttpError(409, 'Video must be reviewed and approved before publishing');
     }
+
+    // Resolve the on-disk asset + a public URL (needed by Instagram).
+    let assetPath = null;
+    if (video.asset_path) {
+      const abs = path.resolve(config.paths.media, video.asset_path);
+      if (abs.startsWith(path.resolve(config.paths.media)) && fs.existsSync(abs)) {
+        assetPath = abs;
+      }
+    }
+    const publicAssetUrl = `${config.oauth.redirectBase}/public/media/${signMediaToken(video.id)}`;
 
     videoRepo.update(userId, video.id, { status: 'publishing' });
 
@@ -59,9 +80,15 @@ router.post(
       });
 
       try {
-        const credentials = decryptJson(account.credential_cipher);
         const adapter = getAdapter(account.platform);
-        const out = await adapter.publish({ video, account, credentials });
+        const credentials = await ensureFreshCredentials(userId, account, adapter);
+        const out = await adapter.publish({
+          video,
+          account,
+          credentials,
+          assetPath,
+          publicAssetUrl,
+        });
         const saved = publicationRepo.markResult(pub.id, {
           status: 'published',
           remoteId: out.remoteId,
@@ -73,6 +100,7 @@ router.post(
           status: 'published',
           publicationId: saved.id,
           remoteUrl: saved.remote_url,
+          simulated: Boolean(out.simulated),
         });
       } catch (e) {
         publicationRepo.markResult(pub.id, { status: 'failed', error: e.message });
