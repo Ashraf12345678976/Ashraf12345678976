@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Video Publisher</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎬</text></svg>" />
+</head>
+<body>
+  <!-- ── Auth screen ─────────────────────────────────────────────── -->
+  <main id="auth-screen" class="auth hidden">
+    <div class="auth-card">
+      <h1>🎬 AI Video Publisher</h1>
+      <p class="muted">Generate AI videos, review them, and publish securely.</p>
+
+      <div class="tabs">
+        <button class="tab active" data-tab="login">Sign in</button>
+        <button class="tab" data-tab="register">Create account</button>
+      </div>
+
+      <form id="login-form" class="auth-form">
+        <label>Email<input type="email" name="email" required autocomplete="email" /></label>
+        <label>Password<input type="password" name="password" required autocomplete="current-password" /></label>
+        <button type="submit" class="btn primary">Sign in</button>
+      </form>
+
+      <form id="register-form" class="auth-form hidden">
+        <label>Display name<input type="text" name="displayName" required /></label>
+        <label>Email<input type="email" name="email" required autocomplete="email" /></label>
+        <label>Password
+          <input type="password" name="password" required minlength="10" autocomplete="new-password" />
+          <small class="muted">Min 10 chars, with upper, lower &amp; a number.</small>
+        </label>
+        <button type="submit" class="btn primary">Create account</button>
+      </form>
+
+      <p id="auth-error" class="error"></p>
+    </div>
+  </main>
+
+  <!-- ── App shell ───────────────────────────────────────────────── -->
+  <div id="app" class="app hidden">
+    <header class="topbar">
+      <div class="brand">🎬 AI Video Publisher</div>
+      <nav class="nav">
+        <button class="nav-link active" data-view="dashboard">Dashboard</button>
+        <button class="nav-link" data-view="studio">Studio</button>
+        <button class="nav-link" data-view="accounts">Accounts</button>
+      </nav>
+      <div class="user-box">
+        <span id="user-name" class="muted"></span>
+        <button id="logout-btn" class="btn ghost">Log out</button>
+      </div>
+    </header>
+
+    <!-- Dashboard -->
+    <section id="view-dashboard" class="view">
+      <h2>Analytics dashboard</h2>
+      <div id="stat-cards" class="cards"></div>
+      <div class="grid-2">
+        <div class="panel">
+          <h3>Views by platform</h3>
+          <div id="platform-bars"></div>
+        </div>
+        <div class="panel">
+          <h3>Top videos</h3>
+          <table id="top-videos" class="table"></table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Studio -->
+    <section id="view-studio" class="view hidden">
+      <h2>Studio</h2>
+      <div class="grid-2">
+        <div class="panel">
+          <h3>Generate a new video</h3>
+          <form id="generate-form">
+            <label>Title<input name="title" required maxlength="140" placeholder="Launch teaser" /></label>
+            <label>Prompt
+              <textarea name="prompt" required rows="5" maxlength="2000"
+                placeholder="A 15-second energetic teaser announcing our new app. Bold colors. Upbeat."></textarea>
+            </label>
+            <button type="submit" class="btn primary">Generate video</button>
+            <span id="generate-status" class="muted"></span>
+          </form>
+        </div>
+        <div class="panel">
+          <h3>Review &amp; publish</h3>
+          <p class="muted">Select a video to watch it before publishing.</p>
+          <div id="review-area" class="review-empty">No video selected.</div>
+        </div>
+      </div>
+      <h3>Your videos</h3>
+      <div id="video-list" class="video-grid"></div>
+    </section>
+
+    <!-- Accounts -->
+    <section id="view-accounts" class="view hidden">
+      <h2>Social accounts</h2>
+      <div class="grid-2">
+        <div class="panel">
+          <h3>Connect an account</h3>
+          <form id="account-form">
+            <label>Platform
+              <select name="platform" required>
+                <option value="youtube">YouTube</option>
+                <option value="tiktok">TikTok</option>
+                <option value="instagram">Instagram</option>
+                <option value="x">X (Twitter)</option>
+              </select>
+            </label>
+            <label>Username<input name="username" required /></label>
+            <label>Password / API token<input name="password" type="password" required /></label>
+            <button type="submit" class="btn primary">Add &amp; verify</button>
+            <span id="account-status" class="muted"></span>
+          </form>
+          <p class="hint">🔒 Credentials are encrypted at rest with AES-256-GCM and verified with the platform before use.</p>
+        </div>
+        <div class="panel">
+          <h3>Connected accounts</h3>
+          <div id="account-list"></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="/app.js" type="module"></script>
+</body>
+</html>
